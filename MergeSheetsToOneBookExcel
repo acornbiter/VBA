@@ -1,0 +1,36 @@
+Sub Merge2MultiSheets()
+Dim wbDst As Workbook
+Dim wbSrc As Workbook
+Dim wsSrc As Worksheet
+Dim MyPath As String
+Dim strFilename As String
+    
+    Application.DisplayAlerts = False
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+    MyPath = "" ' change to suit
+    Set wbDst = Workbooks.Add(xlWBATWorksheet)
+    strFilename = Dir(MyPath & "\*.xls", vbNormal)
+    
+    If Len(strFilename) = 0 Then Exit Sub
+    
+    Do Until strFilename = ""
+        
+            Set wbSrc = Workbooks.Open(Filename:=MyPath & "\" & strFilename)
+            
+            Set wsSrc = wbSrc.Worksheets(1)
+            
+            wsSrc.copy After:=wbDst.Worksheets(wbDst.Worksheets.Count)
+            
+            wbSrc.Close False
+        
+        strFilename = Dir()
+        
+    Loop
+    wbDst.Worksheets(1).Delete
+    
+    Application.DisplayAlerts = True
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    
+End Sub
