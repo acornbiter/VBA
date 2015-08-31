@@ -1,0 +1,410 @@
+
+
+'This is the module code for the program selector. Written by Eric Barton (eric.b.barton@lmco.com, 972-603-1302) 2015.
+Option Explicit
+
+'Set the EnableEvents and Caller to handle when to receive events from the user and to track where the updates are called from
+Public EnableEvents As Boolean
+Public Caller As String
+
+'Three variables for each field. One to hold all values to fill the form, one to hold the selected values, and one to contain the SQL to update the field
+Dim arrLOB() As String
+Dim arrLOBSel() As String
+Public strLOBSQL As String
+
+Dim arrPA() As String
+Dim arrPASel() As String
+Public strPASQL As String
+
+Dim arrStartDate() As String
+Dim arrStartDateSel As String
+Public strStartDateSQL As String
+
+Dim arrEndDate() As String
+Dim arrEndDateSel As String
+Public strEndDateSQL As String
+
+Dim arrCostType() As String
+Dim arrCostTypeSel() As String
+Public strCostTypeSQL As String
+
+Dim arrDevProd() As String
+Dim arrDevProdSel() As String
+Public strDevProdSQL As String
+
+Dim arrPhase() As String
+Dim arrPhaseSel() As String
+Public strPhaseSQL As String
+
+Dim arrWA() As String
+Dim arrWASel() As Variant
+Public strWASQL As String
+
+Dim strDBLocation As String
+
+Private Sub btnOK_Click()
+    Dim arrFieldArray() As Variant
+    Dim strRestrictTable As String
+    
+    'arrFieldArray = getFieldArray(strReportType)
+    'strRestrictTable = getCERestrictTable(strReportType)
+    arrWASel = getListboxSelectedVariant(frmProgramSelector.lbWA)
+    
+    'Unload Me
+    
+    Call GatherData(arrWASel)
+    
+    Unload Me
+    'Call exportSelectedData(arrWASel, arrFieldArray, strRestrictTable)
+    'frmProgramSelector.Hide
+    'Call reportCreator(strReportType)
+End Sub
+
+'Initialize event. Calls the initial fill of the form and shows the form
+Private Sub UserForm_Initialize()
+    strDBLocation = "\\dal4empress\MFCMaster\icedata\_ICE-Database\ICE-Actuals-Database_Frontend.accdb"
+    EnableEvents = True
+    Call initialFill
+    Call fillForms
+    frmProgramSelector.Show
+End Sub
+
+'initialFill sets the starting state of the form. It queries the database for eeach field and fills the appropriate form
+Private Sub initialFill()
+    Dim i As Integer
+    
+    arrLOB = returnOneFieldRecordset("LOB")
+    lbLOB.Clear
+    For i = 0 To UBound(arrLOB)
+        lbLOB.AddItem arrLOB(i)
+    Next i
+    
+    arrStartDate = returnOneFieldRecordset("Start")
+    cbStartDate.Clear
+    For i = 0 To UBound(arrStartDate)
+        cbStartDate.AddItem arrStartDate(i)
+    Next i
+    
+    arrEndDate = returnOneFieldRecordset("End")
+    cbEndDate.Clear
+    For i = 0 To UBound(arrEndDate)
+        cbEndDate.AddItem arrEndDate(i)
+    Next i
+    
+    arrCostType = returnOneFieldRecordset("Cost Type")
+    lbCostType.Clear
+    For i = 0 To UBound(arrCostType)
+        lbCostType.AddItem arrCostType(i)
+    Next i
+    
+    arrDevProd = returnOneFieldRecordset("Dev/Prod")
+    lbDevProd.Clear
+    For i = 0 To UBound(arrDevProd)
+        lbDevProd.AddItem arrDevProd(i)
+    Next i
+End Sub
+
+'fillForms is called on each update. This grabs the selected values, runs the query functions, and resets the forms to show the correct fields.
+Private Sub fillForms()
+    Dim i As Integer
+    
+    arrLOBSel = getListboxSelected(frmProgramSelector.lbLOB)
+    arrPASel = getListboxSelected(frmProgramSelector.lbPA)
+    arrStartDateSel = getComboboxSelected(frmProgramSelector.cbStartDate)
+    arrEndDateSel = getComboboxSelected(frmProgramSelector.cbEndDate)
+    arrCostTypeSel = getListboxSelected(frmProgramSelector.lbCostType)
+    arrDevProdSel = getListboxSelected(frmProgramSelector.lbDevProd)
+    arrPhaseSel = getListboxSelected(frmProgramSelector.lbPhase)
+    arrWASel = getListboxSelectedVariant(frmProgramSelector.lbWA)
+    
+    If Caller = "LOB" Then
+        If arrLOBSel(0) = "ALL" Then arrPA = returnOneFieldRecordset("Program Area") Else arrPA = returnOneFieldRecordset("Program Area", , getPASQL)
+        lbPA.Clear
+        For i = 0 To UBound(arrPA)
+            lbPA.AddItem arrPA(i)
+        Next i
+    End If
+    'Call recallSelections
+    
+    If Caller <> "Phase" Then
+        If (arrLOBSel(0) <> "ALL" Or arrPASel(0) <> "ALL" Or arrStartDateSel <> "Start Date" Or arrEndDateSel <> "End Date" Or arrCostTypeSel(0) <> "ALL" Or arrDevProdSel(0) <> "ALL") Then
+            arrPhase = returnOneFieldRecordset("Phase", , getPhaseSQL)
+        Else
+            arrPhase = returnOneFieldRecordset("Phase")
+        End If
+        lbPhase.Clear
+        For i = 0 To UBound(arrPhase)
+            lbPhase.AddItem arrPhase(i)
+        Next i
+    End If
+    
+    
+    'If arrWASel(0) = "ALL" Then arrWA = returnOneFieldRecordset("Description") Else arrWA = returnOneFieldRecordset("WA", , getWASQL)
+    If (arrLOBSel(0) <> "ALL" Or arrPASel(0) <> "ALL" Or arrStartDateSel <> "Start Date" Or arrEndDateSel <> "End Date" Or arrCostTypeSel(0) <> "ALL" Or arrDevProdSel(0) <> "ALL" Or arrPhaseSel(0) <> "ALL") Then
+        arrWA = returnOneFieldRecordset("Description", , getWASQL)
+    Else
+        arrWA = returnOneFieldRecordset("Description")
+    End If
+    lbWA.Clear
+    For i = 0 To UBound(arrWA)
+        lbWA.AddItem arrWA(i)
+    Next i
+    
+End Sub
+
+'''''Line of Business Functions'''''
+Private Sub lbLOB_Change()
+    Caller = "LOB"
+    'If EnableEvents = False Then Exit Sub
+    Call fillForms
+    'Call recallSelections
+End Sub
+
+
+'''''Program Area Functions'''''
+Private Function getPASQL()
+    Dim strSQL As String
+    
+    strSQL = getSQLTemplate("Program Area")
+    strSQL = strSQL & getWhere("LOB")
+    strSQL = strSQL & " GROUP BY [tbl_ICE-Programs].[Program Area];"
+    
+    getPASQL = strSQL
+End Function
+
+Private Sub lbPA_Change()
+    Caller = "PA"
+    Dim i As Integer
+    i = 0
+    If EnableEvents = False Then Exit Sub
+    Call fillForms
+    'If i = 0 Then Call recallSelections: i = 1
+End Sub
+
+
+'''''Start Date Functions'''''
+Private Sub cbStartDate_Change()
+    Caller = "StartDate"
+    If EnableEvents = False Then Exit Sub
+    Call fillForms
+    'If i = 0 Then Call recallSelections: i = 1
+End Sub
+
+
+'''''End Date Functions'''''
+Private Sub cbEndDate_Change()
+    Caller = "EndDate"
+    If EnableEvents = False Then Exit Sub
+    Call fillForms
+    'If i = 0 Then Call recallSelections: i = 1
+End Sub
+
+
+'''''Cost Type Functions'''''
+Private Sub lbCostType_Change()
+    Caller = "CostType"
+    If EnableEvents = False Then Exit Sub
+    Call fillForms
+    'If i = 0 Then Call recallSelections: i = 1
+End Sub
+
+
+
+'''''DevProd Functions'''''
+Private Sub lbDevProd_Change()
+    Caller = "DevProd"
+    If EnableEvents = False Then Exit Sub
+    Call fillForms
+    'If i = 0 Then Call recallSelections: i = 1
+End Sub
+
+
+'''''Phase Functions'''''
+Private Function getPhaseSQL()
+    Dim strSQL As String
+    
+    strSQL = getSQLTemplate("Phase")
+    strSQL = strSQL & getWhere("LOB") & getWhere("Program Area") & getDate("Start Date") & getDate("End Date") & getWhere("Cost Type") & getWhere("Dev/Prod")
+    strSQL = strSQL & " GROUP BY [tbl_ICE-Programs].[Phase];"
+    
+    getPhaseSQL = strSQL
+End Function
+
+Private Sub lbPhase_Change()
+    Caller = "Phase"
+    If EnableEvents = False Then Exit Sub
+    Call fillForms
+    'If i = 0 Then Call recallSelections: i = 1
+End Sub
+
+
+'''''Program Functions'''''
+Private Function getWASQL()
+    Dim strSQL As String
+    
+    strSQL = getSQLTemplate("Description")
+    strSQL = strSQL & getWhere("LOB") & getWhere("Program Area") & getDate("Start Date") & getDate("End Date") & getWhere("Cost Type") & getWhere("Dev/Prod") & getWhere("Phase")
+    strSQL = strSQL & " GROUP BY [tbl_ICE-Programs].[Description];"
+    
+    getWASQL = strSQL
+End Function
+
+Private Sub lbWA_Change()
+    If EnableEvents = False Then Exit Sub
+   
+End Sub
+
+'''''Generic Functions'''''
+Private Function getListboxSelected(lbx As MSForms.ListBox)
+    Dim i As Integer
+    Dim n As Integer
+    Dim arrReturn() As String
+    
+    n = 0
+    For i = 0 To lbx.ListCount - 1
+        If lbx.Selected(i) = True Then
+            ReDim Preserve arrReturn(0 To n)
+            arrReturn(n) = lbx.List(i)
+            n = n + 1
+        End If
+    Next i
+    
+    If n = 0 Then
+        ReDim arrReturn(0 To 0)
+        arrReturn(0) = "ALL"
+        getListboxSelected = arrReturn
+    Else
+        getListboxSelected = arrReturn
+    End If
+End Function
+
+Private Function getListboxSelectedVariant(lbx As MSForms.ListBox)
+    Dim i As Integer
+    Dim n As Integer
+    Dim arrReturn() As Variant
+    
+    n = 0
+    For i = 0 To lbx.ListCount - 1
+        If lbx.Selected(i) = True Then
+            ReDim Preserve arrReturn(0 To n)
+            arrReturn(n) = lbx.List(i)
+            n = n + 1
+        End If
+    Next i
+    
+    If n = 0 Then
+        ReDim arrReturn(0 To 0)
+        arrReturn(0) = "ALL"
+        getListboxSelectedVariant = arrReturn
+    Else
+        getListboxSelectedVariant = arrReturn
+    End If
+End Function
+
+Private Function getComboboxSelected(cbx As MSForms.ComboBox)
+    Dim strReturn As String
+    getComboboxSelected = cbx.Value
+End Function
+
+Private Function getSQLTemplate(strField As String)
+    getSQLTemplate = "SELECT [tbl_ICE-Programs].[" & strField & "] FROM [tbl_ICE-Programs] IN '" & strDBLocation & "' "
+End Function
+
+Private Function getWhere(strField As String)
+    Dim strWhere As String
+    Dim i As Integer
+    Dim selectArray() As String
+    
+    selectArray = getSelectArray(strField)
+    
+    If (selectArray(0) = "ALL") Then
+        strWhere = ""
+        GoTo Done:
+    End If
+    
+    If strField <> "LOB" Then strWhere = " AND " Else strWhere = "WHERE "
+    strWhere = strWhere & "[tbl_ICE-Programs].[" & strField & "] IN ("
+    For i = 0 To UBound(selectArray)
+        strWhere = strWhere & "'" & selectArray(i) & "'"
+        If i <> UBound(selectArray) Then strWhere = strWhere & ","
+    Next i
+    strWhere = strWhere & ")"
+    
+Done:
+    getWhere = strWhere
+End Function
+
+Private Function getDate(strField As String)
+    Dim strWhere As String
+    Dim selectDate As String
+    
+    selectDate = getSelectArray(strField)
+    If (selectDate = "Start Date" Or selectDate = "End Date") Then
+        strWhere = ""
+        GoTo Done:
+    End If
+    
+    If strField = "Start Date" Then
+        strWhere = " AND [tbl_ICE-Programs].[Start] > #" & selectDate & "#"
+    Else
+        strWhere = " AND [tbl_ICE-Programs].[End] < #" & selectDate & "#"
+    End If
+    
+Done:
+    getDate = strWhere
+    
+End Function
+
+Private Function getSelectArray(strField As String)
+    Select Case strField
+        Case "LOB"
+            getSelectArray = arrLOBSel
+        Case "Program Area"
+            getSelectArray = arrPASel
+        Case "Start Date"
+            getSelectArray = arrStartDateSel
+        Case "End Date"
+            getSelectArray = arrEndDateSel
+        Case "Phase"
+            getSelectArray = arrPhaseSel
+        Case "Cost Type"
+            getSelectArray = arrCostTypeSel
+        Case "Dev/Prod"
+            getSelectArray = arrDevProdSel
+        Case "WA"
+            getSelectArray = arrWASel
+    End Select
+End Function
+
+Private Sub recallSelections()
+    frmProgramSelector.EnableEvents = False
+    Dim i As Integer
+    Dim j As Integer
+    
+    j = 0
+    For i = 0 To UBound(arrPA)
+        If lbPA.List(i) = arrPASel(j) Then
+            lbPA.Selected(i) = True
+            j = j + 1
+            If j > UBound(arrPASel) Then GoTo NextField:
+        End If
+    Next i
+    
+NextField:
+    On Error GoTo Done:
+    j = 0
+    For i = 0 To UBound(arrPhase)
+        If lbPhase.List(i) = arrPhaseSel(j) Then
+            lbPhase.Selected(i) = True
+            j = j + 1
+            If j > UBound(arrPhaseSel) Then GoTo Done:
+        End If
+    Next i
+    
+Done:
+    frmProgramSelector.EnableEvents = True
+End Sub
+
+Private Sub UserForm_Click()
+
+End Sub
