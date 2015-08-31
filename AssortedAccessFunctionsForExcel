@@ -1,0 +1,169 @@
+Option Explicit
+
+Sub importAccessData(dataSQL As String)
+    Dim wbkDataHolder As Workbook
+    Dim acApp As Access.Application
+    
+    Set acApp = New Access.Application
+    acApp.OpenCurrentDatabase ("\\dal4empress\MFCMaster\icedata\_ICE-Database\ICE-Actuals-Database_Frontend.accdb")
+
+    acApp.CurrentDb.QueryDefs.Delete "reportQuery"
+    acApp.CurrentDb.CreateQueryDef "reportQuery", dataSQL
+    acApp.DoCmd.TransferSpreadsheet acExport, acSpreadsheetTypeExcel12Xml, "reportQuery", "\\dal4empress\MFCMaster\icedata\_ICE-Database\Macros\DataHolder.xlsx"
+'    acApp.DoCmd.OutputTo acOutputQuery, "reportQuery", "MicrosoftExcel(*.xlsx)", "\\dal4empress\MFCMaster\icedata\_ICE-Database\Macros\DataHolder.xlsx"
+    
+    Set wbkDataHolder = Workbooks.Open("\\Dal4empress\MFCMaster\icedata\_ICE-Database\Macros\DataHolder.xlsx")
+    wbkDataHolder.Sheets("reportQuery").copy Before:=ThisWorkbook.Sheets(1)
+    Application.DisplayAlerts = False
+    wbkDataHolder.Sheets("reportQuery").Delete
+    wbkDataHolder.Close
+    Application.DisplayAlerts = True
+End Sub
+
+Function returnOneFieldRecordset(Optional strField As String, Optional strWhere As String, Optional strFullSQL As String)
+    Dim oCON As ADODB.Connection
+    Dim oRST As ADODB.Recordset
+    Set oCON = New ADODB.Connection
+    Set oRST = New ADODB.Recordset
+    
+    Dim strDBLocation As String
+    Dim strSQL As String
+    
+    Dim arrRecords() As String
+    
+    strDBLocation = "\\dal4empress\MFCMaster\icedata\_ICE-Database\ICE-Actuals-Database_Frontend.accdb"
+    If strFullSQL <> "" Then
+        strSQL = strFullSQL
+    ElseIf strWhere <> "" Then
+        strSQL = "SELECT [tbl_ICE-Programs].[" & strField & "] FROM [tbl_ICE-Programs] IN '" & strDBLocation & "' " & strWhere & " GROUP BY [tbl_ICE-Programs].[" & strField & "];"
+    Else
+        strSQL = "SELECT [tbl_ICE-Programs].[" & strField & "] FROM [tbl_ICE-Programs] IN '" & strDBLocation & "' GROUP BY [tbl_ICE-Programs].[" & strField & "];"
+    End If
+    
+    With oCON
+        .Provider = "Microsoft.ACE.OLEDB.12.0"
+        .Open "Data Source = \\dal4empress\MFCMaster\icedata\_ICE-Database\ICE-Actuals-Database_Frontend.accdb"
+    End With
+    
+    oRST.Open strSQL, oCON, adOpenDynamic, adLockReadOnly
+    
+    Dim i As Integer
+    i = 1
+    While oRST.EOF = False
+        ReDim Preserve arrRecords(0 To i - 1)
+        If IsNull(oRST.Fields(strField)) Then
+            arrRecords(i - 1) = "NA"
+        Else
+            arrRecords(i - 1) = oRST.Fields(strField)
+        End If
+        i = i + 1
+        oRST.MoveNext
+    Wend
+    
+    returnOneFieldRecordset = arrRecords
+    
+End Function
+
+Sub exportSelectedData(arrWA() As String, arrSelectedFields() As Variant, Optional strRestrictTableName As String)
+    Dim i As Integer
+    Dim j As Integer
+    Dim oCON As ADODB.Connection
+    Dim oRST As ADODB.Recordset
+    Set oCON = New ADODB.Connection
+    Set oRST = New ADODB.Recordset
+    
+    Dim db As DAO.Database
+    Dim rs As DAO.Recordset
+    Access.OpenCurrentDatabase "\\dal4empress\MFCMaster\icedata\_ICE-Database\ICE-Actuals-Database_Frontend.accdb", False
+    'Set db = DAO.OpenDatabase("\\dal4empress\MFCMaster\icedata\_ICE-Database\ICE-Actuals-Database_Frontend.accdb")
+    Set db = CurrentDb
+    
+    
+    Dim strDBLocation As String
+    Dim strSQL As String
+    Dim strIndexSQL
+    Dim intIndex As Integer
+    Dim strIndexRange As String
+    Dim strTableName As String
+    
+    Dim wbkExportBook As Workbook
+    Workbooks.Open ("\\dal4empress\mfcmaster\icedata\_ICE-Database\Temp Data\tempData.xlsx")
+    Application.DisplayAlerts = False
+    While ActiveWorkbook.Sheets.Count > 1
+        ActiveWorkbook.Sheets(2).Delete
+    Wend
+    ActiveWorkbook.Close SaveChanges:=True
+    Application.DisplayAlerts = True
+    
+    
+    strDBLocation = "\\dal4empress\MFCMaster\icedata\_ICE-Database\ICE-Actuals-Database_Frontend.accdb"
+    
+    With oCON
+        .Provider = "Microsoft.ACE.OLEDB.12.0"
+        .Open "Data Source = \\dal4empress\MFCMaster\icedata\_ICE-Database\ICE-Actuals-Database_Frontend.accdb"
+    End With
+    
+    'Set db = CurrentDb
+    
+    For j = 0 To UBound(arrWA)
+        strSQL = "SELECT "
+        strIndexSQL = "SELECT [tbl_ICE-Programs].[Index] FROM [tbl_ICE-Programs] WHERE [tbl_ICE-Programs].[WA] = """ & Left(arrWA(j), 4) & """"
+        oRST.Open strIndexSQL, oCON, adOpenDynamic, adLockReadOnly
+        intIndex = oRST.Fields("Index")
+        strIndexRange = getIndexRange(intIndex)
+        strTableName = "[act_" & strIndexRange & "]"
+        
+        For i = 0 To UBound(arrSelectedFields)
+            If i <> 0 Then strSQL = strSQL & ", "
+            strSQL = strSQL & strTableName & ".[" & arrSelectedFields(i) & "]"
+        Next i
+        
+        strSQL = strSQL & " FROM " & strTableName & " WHERE " & strTableName & ".[PROJ] = """ & Left(arrWA(j), 4) & """" & ";"
+        
+        On Error Resume Next
+        db.QueryDefs.Delete "temp" & j
+        On Error GoTo 0
+        
+        db.CreateQueryDef "temp" & j, strSQL
+        DoCmd.TransferSpreadsheet acExport, acSpreadsheetTypeExcel12Xml, "temp" & j, "\\dal4empress\mfcmaster\icedata\_ICE-Database\Temp Data\tempData.xlsx", True
+        
+        oRST.Close
+    Next j
+End Sub
+
+Sub runAccessConnection()
+    Call importAccessData("SELECT PROJ from [act_Union-Actuals-SW]")
+End Sub
+
+Function getSingleRecord(strRecordToRetrieve As String, ByVal strWA As String)
+    Dim oCON As ADODB.Connection
+    Dim oRST As ADODB.Recordset
+    Set oCON = New ADODB.Connection
+    Set oRST = New ADODB.Recordset
+    
+    Dim strDBLocation As String
+    Dim strSQL As String
+    
+    Dim arrRecords() As String
+    
+    strDBLocation = "\\dal4empress\MFCMaster\icedata\_ICE-Database\ICE-Actuals-Database_Frontend.accdb"
+    strSQL = "SELECT [tbl_ICE-Programs].[" & strRecordToRetrieve & "] FROM [tbl_ICE-Programs] WHERE [tbl_ICE-Programs].[WA] = " & """" & strWA & """" & ";"
+    
+    With oCON
+        .Provider = "Microsoft.ACE.OLEDB.12.0"
+        .Open "Data Source = \\dal4empress\MFCMaster\icedata\_ICE-Database\ICE-Actuals-Database_Frontend.accdb"
+    End With
+    
+    oRST.Open strSQL, oCON, adOpenDynamic, adLockReadOnly
+    
+    getSingleRecord = oRST.Fields(strRecordToRetrieve)
+    
+End Function
+
+Function getDataXferPeriod(CurQtrDir As Variant, WA As Variant)
+    Dim strFoundFile As String
+    
+    strFoundFile = Dir(CurQtrDir & "\*" & WA & "*")
+    
+    getDataXferPeriod = Left(strFoundFile, 7)
+End Function
