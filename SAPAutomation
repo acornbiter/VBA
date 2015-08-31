@@ -1,0 +1,100 @@
+Public App, Connection, session As Object
+
+Public Sub SAP_RunVBScript(ByVal strPathToVBScript As String)
+'The purpose of this macro is to run an SAP VBScript that runs a report, then saving that report and opening it in Excel
+'Call the subroutine with the path to your VBScript
+
+Dim strFileSaveName As String
+
+'Set the path to the VBScript and Execute
+strPathToVBScript = Chr(34) & strPathToVBScript & Chr(34)
+'Shell "wscript.exe " & strPathToVBScript
+SAP_VBScriptShell (strPathToVBScript)
+
+'Give SAP a little time to run the report
+Application.Wait (Now + TimeValue("0:00:10"))
+
+'Look for "Save As" window if SAP needs more time
+On Error Resume Next
+Dim i As Integer
+i = 0
+While i < 15
+On Error Resume Next
+AppActivate ("Save As")
+If Err <> 0 Then
+    Application.Wait (Now + TimeValue("0:00:02"))
+    If i = 14 Then
+        MsgBox "SAP Report Timed Out, Please Try Again", vbOKOnly
+        Exit Sub
+    End If
+    i = i + 1
+Else: GoTo ReportGood
+End If
+Err.Clear
+Wend
+
+'"Save As" window found, save file and open
+ReportGood:
+Application.SendKeys strFileSaveName, Wait:=True
+
+Application.SendKeys "{ENTER}", Wait:=True
+Application.SendKeys "{LEFT}", Wait:=True
+Application.SendKeys "{ENTER}", Wait:=True
+
+End Sub
+
+Public Sub SAP_VBScriptShell(ByVal strVBScriptFileName As String)
+'This is a simple subroutine to run a SAP VBScript from the Shell. Pass it the file path and name of the VBScript
+
+Shell "wscript.exe " & strVBScriptFileName
+
+End Sub
+
+Public Sub SAP_CallScriptingEngine()
+
+'setting the connection with sap:
+
+Set SapGuiAuto = GetObject("SAPGUI")
+Set App = SapGuiAuto.GetScriptingEngine
+Set Connection = App.Children(0)
+Set session = Connection.Children(0)
+
+End Sub
+
+
+Public Function SAP_IsOpen()
+
+Dim killCounter As Integer
+killCounter = 0
+
+While SAP_IsOpen = False
+    killCounter = killCounter + 1
+    On Error Resume Next
+    AppActivate ("PRD(1)/010 SAP Easy Access")
+    If Err <> 0 Then
+        Err.Clear
+        AppActivate ("SAP Logon 720")
+        If Err = 0 Then
+            AppActivate "Microsoft Excel"
+            MsgBox "SAP main window is not open, please log on.", vbRetryCancel, "Please Log In"
+        Else
+            MsgBox "Please login to SAP before running the update", vbRetryCancel, "SAP Not Open"
+        End If
+    Else
+IsOpen:
+            SAP_IsOpen = True
+            killCounter = 0
+            Exit Function
+    End If
+    AppActivate ("PRD(1)/010 SAP Easy Access")
+    If killCounter = 3 And Err <> 0 Then
+        MsgBox "Error: SAP is not open. Please try again when SAP is open or contact Eric Barton", vbOKOnly + vbExclamation, "Error: Timed Out"
+        SAP_IsOpen = False
+        Exit Function
+    End If
+    If Err = 0 Then
+        GoTo IsOpen
+    End If
+Wend
+
+End Function
