@@ -1,0 +1,28 @@
+Sub fixTextToNumbers()
+    Dim i As Integer
+    Dim j As Integer
+    
+    For i = 1 To 9
+        For j = 2 To 55
+            If InStr(1, Cells(j, i).Value, ".") <> 0 Then
+                Cells(j, i).Value = Application.WorksheetFunction.Substitute(Cells(j, i).Value, Chr(160), "")
+               ' Cells(j, i).Value = Trim(Cells(j, i).Value)
+            End If
+        Next j
+    Next i
+End Sub
+
+Sub fixTrailingNegs()
+    Dim i As Integer
+    Dim j As Integer
+    
+    For i = 1 To 9
+        For j = 2 To 55
+            If Right(Cells(j, i).Value, 1) = "-" Then
+                'Cells(j, i).Value = Application.WorksheetFunction.Substitute(Cells(j, i).Value, Chr(160), "")
+               ' Cells(j, i).Value = Trim(Cells(j, i).Value)
+               Cells(j, i).Value = Application.WorksheetFunction.Substitute(Cells(j, i).Value, "-", "") * -1
+            End If
+        Next j
+    Next i
+End Sub
